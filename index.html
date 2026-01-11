@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Cycle | 星のサイクル</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts: Inter and Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=Outfit:wght@200;400&display=swap"
+        rel="stylesheet">
+    <!-- p5.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+</head>
+
+<body>
+    <div id="ui-layer">
+        <!-- INIT State -->
+        <div id="state-init" class="ui-screen active">
+            <div class="overlay"></div>
+            <div class="content">
+                <header>
+                    <h2 class="sub-title">星のサイクル</h2>
+                    <h1 class="main-title">Stellar Cycle</h1>
+                </header>
+                <div class="intro">
+                    <p class="secondary-text">ここには、まだ何もない。</p>
+                    <p class="main-text">宇宙は、最初から秩序を持っていたわけではない。<br>わずかな揺らぎが、すべての始まりだった。</p>
+                </div>
+                <button id="btn-start" class="cta-button">揺らぎを与える</button>
+            </div>
+        </div>
+
+        <!-- SELECT_POSITION State -->
+        <div id="state-select" class="ui-screen">
+            <div class="guide-text bottom-fade">
+                <p>宇宙をタップしてください。<br>星が生まれる「場所」を選びます。</p>
+                <p class="note fade-in-delayed">この選択が、すべてを決めるわけではありません。<br>ただ、始まりの条件になります。</p>
+            </div>
+        </div>
+
+        <!-- SET_PARAMETERS State -->
+        <div id="state-params" class="ui-screen">
+            <div class="glass-card footer-card">
+                <div class="param-group">
+                    <div class="label-row">
+                        <span class="label">質量</span>
+                    </div>
+                    <p class="desc">星に与えられる、存在の重さ。<br>大きな質量は、長い一生と激しい終焉をもたらします。</p>
+                    <input type="range" id="slider-mass" min="0" max="100" value="50" class="custom-slider">
+                </div>
+
+                <div class="param-group">
+                    <div class="label-row">
+                        <span class="label">不安定さ</span>
+                    </div>
+                    <p class="desc">星の内部に潜む、揺らぎの大きさ。<br>高いほど、脈動は強くなります。</p>
+                    <input type="range" id="slider-instability" min="0" max="100" value="30" class="custom-slider">
+                </div>
+
+                <p class="warning-text">数値は表示されません。結果は、宇宙に委ねられます。</p>
+
+                <button id="btn-observe" class="cta-button">観測を始める</button>
+            </div>
+        </div>
+
+        <!-- OBSERVATION State -->
+        <div id="state-observation" class="ui-screen">
+            <div class="top-label">
+                <span class="pulse-text">観測中</span>
+            </div>
+            <div class="bottom-note fade-in-delayed-long">
+                <p>星は、あなたの操作を必要としません。</p>
+            </div>
+        </div>
+
+        <!-- END State -->
+        <div id="state-end" class="ui-screen">
+            <div class="content">
+                <div class="end-text-container">
+                    <p id="end-message" class="main-text"></p>
+                    <p class="secondary-text">終わりは、次の始まりでもあります。</p>
+                </div>
+                <button id="btn-restart" class="cta-button">別の揺らぎを与える</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer Policy -->
+    <footer id="main-footer">
+        <p>本作品は、現代宇宙論の概念を芸術的・抽象的に再解釈したものです。数値的な天体シミュレーションではありません。</p>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
