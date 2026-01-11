@@ -483,3 +483,5 @@ function changeState(newState) {
 
     console.log("State changed to:", newState);
 }
+
+console.log("%c --- PLEASE HARD REFRESH (Cmd+Shift+R) TO SEE NEW DYNAMICS --- ", "color: #fff; background: #f00; font-weight: bold; padding: 10px;");
