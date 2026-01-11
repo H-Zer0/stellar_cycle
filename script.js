@@ -17,6 +17,7 @@ const STATES = {
     BIG_BANG: "BIG_BANG",
     STAR_FORMATION: "STAR_FORMATION",
     OBSERVATION: "OBSERVATION",
+    BLACK_HOLE_SINK: "BLACK_HOLE_SINK",
     END: "END"
 };
 
@@ -83,24 +84,41 @@ class Star {
         this.mass = parseFloat(mass);
         this.instability = parseFloat(instability);
         this.size = 0;
-        this.targetSize = map(this.mass, 0, 100, 15, 60);
+        this.targetSize = map(this.mass, 0, 100, 15, 50);
         this.currentAlpha = 0;
         this.maxAlpha = 255;
-        this.life = map(this.mass, 0, 100, 400, 1000); // 寿命
-        this.isDying = false;
+        this.life = map(this.mass, 0, 100, 500, 1200);
         this.exploded = false;
+        this.seed = random(1000);
+
+        // 色の計算 (大質量:青白, 小質量:琥珀/赤)
+        let c1 = color(255, 100, 50); // 赤色矮星
+        let c2 = color(255, 255, 255); // 白
+        let c3 = color(100, 180, 255); // 青色巨星
+
+        let c;
+        if (this.mass < 50) {
+            c = lerpColor(c1, c2, map(this.mass, 0, 50, 0, 1));
+        } else {
+            c = lerpColor(c2, c3, map(this.mass, 50, 100, 0, 1));
+        }
+
+        // 先代の色の継承 (微かに)
+        if (universe.legacyColor) {
+            let lc = color(universe.legacyColor[0], universe.legacyColor[1], universe.legacyColor[2]);
+            c = lerpColor(c, lc, 0.1);
+        }
+
+        this.col = [red(c), green(c), blue(c)];
     }
 
     update() {
         if (currentState === STATES.STAR_FORMATION) {
-            if (this.size < this.targetSize) this.size += 0.1;
-            if (this.currentAlpha < this.maxAlpha) this.currentAlpha += 2;
+            if (this.size < this.targetSize) this.size += 0.12;
+            if (this.currentAlpha < this.maxAlpha) this.currentAlpha += 3;
         } else if (currentState === STATES.OBSERVATION) {
             this.life -= 1;
-            if (this.life <= 0) {
-                this.isDying = true;
-                changeState(STATES.END);
-            }
+            if (this.life <= 0) changeState(STATES.END);
         }
     }
 
@@ -108,32 +126,91 @@ class Star {
         if (this.size <= 0) return;
 
         // 脈動ロジック
-        let pulseTarget = map(this.instability, 0, 100, 0.01, 0.08);
-        let pulseAmp = map(this.instability, 0, 100, 2, 15);
-        let pulse = sin(frameCount * pulseTarget) * pulseAmp;
+        let pulseSpeed = map(this.instability, 0, 100, 0.02, 0.12);
+        let pulseAmp = map(this.instability, 0, 100, 1, 12);
+
+        // 高不安定時は周期を不規則に
+        let time = frameCount * pulseSpeed;
+        if (this.instability > 70) {
+            time += noise(frameCount * 0.05) * 5;
+        }
+        let pulse = sin(time) * pulseAmp;
         let currentSize = this.size + pulse;
 
+        // 終焉ロジック
         if (currentState === STATES.END && !this.exploded) {
-            if (this.mass > 60) {
+            if (this.mass > 90) {
+                // ブラックホール・シナリオ
+                changeState(STATES.BLACK_HOLE_SINK);
+                this.exploded = true;
+                universe.addNebula(this.pos.x, this.pos.y, this.col);
+            } else if (this.mass > 50) {
                 // 超新星爆発
-                universe.explode(this.pos.x, this.pos.y, this.mass);
+                universe.explode(this.pos.x, this.pos.y, this.mass, this.col, "SUPERNOVA");
                 this.exploded = true;
                 this.size = 0;
+                universe.addNebula(this.pos.x, this.pos.y, this.col);
             } else {
-                // 静かな終焉
-                this.size -= 0.1;
-                this.currentAlpha -= 2;
-                if (this.size <= 0) this.size = 0;
+                // 惑星状星雲 / 消滅
+                this.size -= 0.15;
+                this.currentAlpha -= 3;
+                if (frameCount % 5 === 0) {
+                    universe.explosionParticles.push(new Particle(this.pos.x + random(-10, 10), this.pos.y + random(-10, 10), true, 10, this.col));
+                }
+                if (this.size <= 0) {
+                    this.size = 0;
+                    this.exploded = true;
+                    universe.addNebula(this.pos.x, this.pos.y, this.col);
+                }
             }
         }
 
-        if (this.size > 0) {
-            for (let i = 5; i > 0; i--) {
-                fill(255, 255, 255, (this.currentAlpha / 10) / i);
-                circle(this.pos.x, this.pos.y, currentSize + (i * 15));
+        if (this.size > 0 && currentState !== STATES.BLACK_HOLE_SINK) {
+            // 形状の歪み (不安定さ依存)
+            push();
+            translate(this.pos.x, this.pos.y);
+
+            // 外側のグロー
+            for (let i = 4; i > 0; i--) {
+                fill(this.col[0], this.col[1], this.col[2], (this.currentAlpha / 12) / i);
+                let gSize = (currentSize + (i * 20)) * (1 + (this.mass > 70 ? sin(frameCount * 0.1) * 0.05 : 0));
+                circle(0, 0, gSize);
             }
-            fill(255, 255, 255, this.currentAlpha);
-            circle(this.pos.x, this.pos.y, currentSize);
+
+            // 本体の描画 (不安定な場合は歪ませる)
+            fill(this.col[0], this.col[1], this.col[2], this.currentAlpha);
+            if (this.instability > 60) {
+                beginShape();
+                for (let a = 0; a < TWO_PI; a += 0.2) {
+                    let offset = noise(cos(a) + 1, sin(a) + 1, frameCount * 0.02) * map(this.instability, 60, 100, 0, 15);
+                    let r = currentSize / 2 + offset;
+                    let x = cos(a) * r;
+                    let y = sin(a) * r;
+                    vertex(x, y);
+                }
+                endShape(CLOSE);
+            } else {
+                circle(0, 0, currentSize);
+            }
+
+            // 大質量星の回折ハレーション
+            if (this.mass > 80) {
+                stroke(this.col[0], this.col[1], this.col[2], 50);
+                strokeWeight(1);
+                let hLen = currentSize * 2;
+                line(-hLen, 0, hLen, 0);
+                line(0, -hLen, 0, hLen);
+            }
+            pop();
+        } else if (currentState === STATES.BLACK_HOLE_SINK) {
+            // ブラックホールの漆黒
+            fill(0);
+            stroke(255, 255, 255, 150);
+            circle(this.pos.x, this.pos.y, currentSize * 0.8);
+            noStroke();
+            // 周囲の余韻光
+            fill(this.col[0], this.col[1], this.col[2], 50);
+            circle(this.pos.x, this.pos.y, currentSize * 1.5);
         }
     }
 }
@@ -323,8 +400,17 @@ function changeState(newState) {
     }
 
     if (newState === STATES.END) {
-        let msg = universe.targetStar.mass > 60 ? "星は、その役目を終えました。" : "星は、宇宙へ還りました。";
+        let msg = "星は、宇宙へ還りました。";
+        if (universe.targetStar.mass > 90) {
+            msg = "星は重力に屈し、漆黒の深淵となりました。";
+        } else if (universe.targetStar.mass > 50) {
+            msg = "星は、その役目を終えました。";
+        }
         document.getElementById('end-message').innerText = msg;
+    }
+
+    if (newState === STATES.BLACK_HOLE_SINK) {
+        universe.sinkAlpha = 0;
     }
 
     console.log("State changed to:", newState);
