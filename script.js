@@ -6,8 +6,6 @@
 let universe;
 let currentState = "INIT";
 let targetPos = null;
-
-// UI Elements
 let screens = {};
 
 const STATES = {
@@ -22,22 +20,23 @@ const STATES = {
 };
 
 class Particle {
-    constructor(x, y, isExplosion = false, mass = 50) {
+    constructor(x, y, isExplosion = false, mass = 50, col = [255, 255, 255]) {
         this.pos = createVector(x, y);
         if (isExplosion) {
             let angle = random(TWO_PI);
-            let speed = random(1, map(mass, 0, 100, 5, 15));
+            let speed = random(2, map(mass, 0, 100, 6, 20));
             this.vel = createVector(cos(angle) * speed, sin(angle) * speed);
         } else {
             this.vel = createVector(random(-1, 1), random(-1, 1));
         }
         this.acc = createVector(0, 0);
-        this.size = random(0.5, 3);
-        this.alpha = random(100, 255);
+        this.size = random(1, 4);
+        this.alpha = random(180, 255);
         this.baseX = x;
         this.baseY = y;
         this.isExplosion = isExplosion;
-        this.friction = 0.98;
+        this.col = col;
+        this.friction = 0.97;
     }
 
     applyForce(force) {
@@ -49,21 +48,28 @@ class Particle {
             let target = createVector(universe.targetStar.pos.x, universe.targetStar.pos.y);
             let dir = p5.Vector.sub(target, this.pos);
             let dist = dir.mag();
-            if (dist < 5) {
-                this.alpha -= 5;
+            if (dist < 8) {
+                this.alpha -= 10;
             } else {
                 dir.normalize();
-                dir.mult(0.15);
+                dir.mult(0.25);
                 this.applyForce(dir);
                 this.vel.add(this.acc);
-                this.vel.limit(3);
+                this.vel.limit(5);
                 this.pos.add(this.vel);
                 this.acc.mult(0);
             }
         } else if (this.isExplosion) {
             this.vel.mult(this.friction);
             this.pos.add(this.vel);
-            this.alpha -= 1;
+            this.alpha -= 2;
+        } else if (currentState === STATES.BLACK_HOLE_SINK) {
+            let target = createVector(universe.targetStar.pos.x, universe.targetStar.pos.y);
+            let dir = p5.Vector.sub(target, this.pos);
+            dir.normalize();
+            dir.mult(2.0); // Fast pull
+            this.pos.add(dir);
+            this.alpha -= 3;
         } else {
             this.pos.x = this.baseX + sin(frameCount * 0.01 + this.alpha) * 5;
             this.pos.y = this.baseY + cos(frameCount * 0.01 + this.alpha) * 5;
@@ -73,7 +79,7 @@ class Particle {
     draw() {
         if (this.alpha <= 0) return;
         noStroke();
-        fill(255, 255, 255, this.alpha);
+        fill(this.col[0], this.col[1], this.col[2], this.alpha);
         circle(this.pos.x, this.pos.y, this.size);
     }
 }
@@ -84,29 +90,31 @@ class Star {
         this.mass = parseFloat(mass);
         this.instability = parseFloat(instability);
         this.size = 0;
-        this.targetSize = map(this.mass, 0, 100, 15, 50);
+        this.targetSize = map(this.mass, 0, 100, 20, 70);
         this.currentAlpha = 0;
         this.maxAlpha = 255;
-        this.life = map(this.mass, 0, 100, 500, 1200);
+        this.life = map(this.mass, 0, 100, 600, 1500);
         this.exploded = false;
-        this.seed = random(1000);
 
-        // 色の計算 (大質量:青白, 小質量:琥珀/赤)
-        let c1 = color(255, 100, 50); // 赤色矮星
-        let c2 = color(255, 255, 255); // 白
-        let c3 = color(100, 180, 255); // 青色巨星
+        // 色の計算 (大質量:鋭い青白, 小質量:深い赤)
+        let c1 = color(255, 30, 0); // 激しい赤
+        let c2 = color(255, 200, 150); // オレンジ・ゴールド
+        let c3 = color(255, 255, 255); // 白
+        let c4 = color(0, 150, 255); // 鋭い青
 
         let c;
-        if (this.mass < 50) {
-            c = lerpColor(c1, c2, map(this.mass, 0, 50, 0, 1));
+        if (this.mass < 33) {
+            c = lerpColor(c1, c2, map(this.mass, 0, 33, 0, 1));
+        } else if (this.mass < 66) {
+            c = lerpColor(c2, c3, map(this.mass, 33, 66, 0, 1));
         } else {
-            c = lerpColor(c2, c3, map(this.mass, 50, 100, 0, 1));
+            c = lerpColor(c3, c4, map(this.mass, 66, 100, 0, 1));
         }
 
-        // 先代の色の継承 (微かに)
+        // 先代の色の影響を強めに受けるように修正
         if (universe.legacyColor) {
             let lc = color(universe.legacyColor[0], universe.legacyColor[1], universe.legacyColor[2]);
-            c = lerpColor(c, lc, 0.1);
+            c = lerpColor(c, lc, 0.25);
         }
 
         this.col = [red(c), green(c), blue(c)];
@@ -114,8 +122,8 @@ class Star {
 
     update() {
         if (currentState === STATES.STAR_FORMATION) {
-            if (this.size < this.targetSize) this.size += 0.12;
-            if (this.currentAlpha < this.maxAlpha) this.currentAlpha += 3;
+            if (this.size < this.targetSize) this.size += 0.2;
+            if (this.currentAlpha < this.maxAlpha) this.currentAlpha += 5;
         } else if (currentState === STATES.OBSERVATION) {
             this.life -= 1;
             if (this.life <= 0) changeState(STATES.END);
@@ -125,14 +133,12 @@ class Star {
     draw() {
         if (this.size <= 0) return;
 
-        // 脈動ロジック
-        let pulseSpeed = map(this.instability, 0, 100, 0.02, 0.12);
-        let pulseAmp = map(this.instability, 0, 100, 1, 12);
-
-        // 高不安定時は周期を不規則に
+        // 脈動ロジック (不規則性を強調)
+        let pulseSpeed = map(this.instability, 0, 100, 0.03, 0.2);
+        let pulseAmp = map(this.instability, 0, 100, 1, 20);
         let time = frameCount * pulseSpeed;
-        if (this.instability > 70) {
-            time += noise(frameCount * 0.05) * 5;
+        if (this.instability > 50) {
+            time += noise(frameCount * 0.1) * map(this.instability, 50, 100, 0, 10);
         }
         let pulse = sin(time) * pulseAmp;
         let currentSize = this.size + pulse;
@@ -140,22 +146,19 @@ class Star {
         // 終焉ロジック
         if (currentState === STATES.END && !this.exploded) {
             if (this.mass > 90) {
-                // ブラックホール・シナリオ
                 changeState(STATES.BLACK_HOLE_SINK);
                 this.exploded = true;
-                universe.addNebula(this.pos.x, this.pos.y, this.col);
+                universe.addNebula(this.pos.x, this.pos.y, this.col, true);
             } else if (this.mass > 50) {
-                // 超新星爆発
                 universe.explode(this.pos.x, this.pos.y, this.mass, this.col, "SUPERNOVA");
                 this.exploded = true;
                 this.size = 0;
                 universe.addNebula(this.pos.x, this.pos.y, this.col);
             } else {
-                // 惑星状星雲 / 消滅
-                this.size -= 0.15;
-                this.currentAlpha -= 3;
-                if (frameCount % 5 === 0) {
-                    universe.explosionParticles.push(new Particle(this.pos.x + random(-10, 10), this.pos.y + random(-10, 10), true, 10, this.col));
+                this.size -= 0.3;
+                this.currentAlpha -= 5;
+                if (frameCount % 3 === 0) {
+                    universe.explosionParticles.push(new Particle(this.pos.x + random(-15, 15), this.pos.y + random(-15, 15), true, 10, this.col));
                 }
                 if (this.size <= 0) {
                     this.size = 0;
@@ -166,23 +169,23 @@ class Star {
         }
 
         if (this.size > 0 && currentState !== STATES.BLACK_HOLE_SINK) {
-            // 形状の歪み (不安定さ依存)
             push();
             translate(this.pos.x, this.pos.y);
 
-            // 外側のグロー
-            for (let i = 4; i > 0; i--) {
-                fill(this.col[0], this.col[1], this.col[2], (this.currentAlpha / 12) / i);
-                let gSize = (currentSize + (i * 20)) * (1 + (this.mass > 70 ? sin(frameCount * 0.1) * 0.05 : 0));
+            // 外側の重厚なグロー
+            for (let i = 6; i > 0; i--) {
+                fill(this.col[0], this.col[1], this.col[2], (this.currentAlpha / 15) / i);
+                let gSize = (currentSize + (i * 25)) * (1 + (this.mass > 60 ? sin(frameCount * 0.1) * 0.08 : 0));
                 circle(0, 0, gSize);
             }
 
-            // 本体の描画 (不安定な場合は歪ませる)
+            // 本体の描画 (歪みを極端に)
             fill(this.col[0], this.col[1], this.col[2], this.currentAlpha);
-            if (this.instability > 60) {
+            if (this.instability > 40) {
                 beginShape();
-                for (let a = 0; a < TWO_PI; a += 0.2) {
-                    let offset = noise(cos(a) + 1, sin(a) + 1, frameCount * 0.02) * map(this.instability, 60, 100, 0, 15);
+                for (let a = 0; a < TWO_PI; a += 0.1) {
+                    let noiseVal = noise(cos(a) + 1, sin(a) + 1, frameCount * 0.05);
+                    let offset = noiseVal * map(this.instability, 40, 100, 0, 30);
                     let r = currentSize / 2 + offset;
                     let x = cos(a) * r;
                     let y = sin(a) * r;
@@ -193,24 +196,33 @@ class Star {
                 circle(0, 0, currentSize);
             }
 
-            // 大質量星の回折ハレーション
-            if (this.mass > 80) {
-                stroke(this.col[0], this.col[1], this.col[2], 50);
-                strokeWeight(1);
-                let hLen = currentSize * 2;
+            // 大質量星のハレーションをより鮮明に
+            if (this.mass > 75) {
+                stroke(this.col[0], this.col[1], this.col[2], 80);
+                strokeWeight(2);
+                let hLen = currentSize * 2.5;
                 line(-hLen, 0, hLen, 0);
                 line(0, -hLen, 0, hLen);
+                if (this.mass > 90) {
+                    rotate(PI / 4);
+                    line(-hLen * 0.7, 0, hLen * 0.7, 0);
+                    line(0, -hLen * 0.7, 0, hLen * 0.7);
+                }
             }
             pop();
         } else if (currentState === STATES.BLACK_HOLE_SINK) {
-            // ブラックホールの漆黒
+            // ブラックホールのイベントホライゾン
             fill(0);
-            stroke(255, 255, 255, 150);
-            circle(this.pos.x, this.pos.y, currentSize * 0.8);
+            stroke(this.col[0], this.col[1], this.col[2], 200);
+            strokeWeight(3);
+            circle(this.pos.x, this.pos.y, currentSize * 0.6);
+
+            // アクリーションディスクのような光
             noStroke();
-            // 周囲の余韻光
-            fill(this.col[0], this.col[1], this.col[2], 50);
-            circle(this.pos.x, this.pos.y, currentSize * 1.5);
+            for (let i = 3; i > 0; i--) {
+                fill(this.col[0], this.col[1], this.col[2], 30 / i);
+                circle(this.pos.x, this.pos.y, currentSize * (1.2 + i * 0.5));
+            }
         }
     }
 }
@@ -221,39 +233,69 @@ class Universe {
         this.bgStars = [];
         this.dustParticles = [];
         this.explosionParticles = [];
+        this.nebulae = [];
         this.targetStar = null;
         this.shakeAmount = 0;
+        this.legacyBrightness = 15;
+        this.legacyColor = null;
         this.initBackgroundStars();
     }
 
     initBackgroundStars() {
-        for (let i = 0; i < 200; i++) {
+        this.bgStars = [];
+        for (let i = 0; i < 250; i++) {
             this.bgStars.push({
                 x: random(width),
                 y: random(height),
-                size: random(0.5, 1.5),
-                alpha: random(50, 150)
+                size: random(0.5, 2.0),
+                alpha: random(50, 180)
             });
         }
     }
 
     initDustParticles() {
         this.dustParticles = [];
-        for (let i = 0; i < 400; i++) {
+        for (let i = 0; i < 500; i++) {
             let angle = random(TWO_PI);
             let r = random(width * 0.2, max(width, height));
             let x = this.targetStar.pos.x + cos(angle) * r;
             let y = this.targetStar.pos.y + sin(angle) * r;
-            this.dustParticles.push(new Particle(x, y));
+            this.dustParticles.push(new Particle(x, y, false, 50, this.targetStar.col));
         }
     }
 
-    explode(x, y, mass) {
-        this.shake(25);
-        this.explosionParticles = [];
-        let count = map(mass, 0, 100, 200, 600);
+    addNebula(x, y, color, isBlackHole = false) {
+        let count = isBlackHole ? 100 : 70;
         for (let i = 0; i < count; i++) {
-            this.explosionParticles.push(new Particle(x, y, true, mass));
+            this.nebulae.push({
+                x: x + random(-60, 60),
+                y: y + random(-60, 60),
+                size: random(5, 15),
+                alpha: random(10, 40),
+                col: color,
+                driftX: random(-0.1, 0.1),
+                driftY: random(-0.1, 0.1)
+            });
+        }
+        this.legacyBrightness = min(this.legacyBrightness + 10, 60);
+        this.legacyColor = color;
+    }
+
+    explode(x, y, mass, color, mode = "SUPERNOVA") {
+        this.shake(mode === "BLACK_HOLE" ? 50 : 35);
+        this.explosionParticles = [];
+        let count = map(mass, 0, 100, 300, 800);
+
+        for (let i = 0; i < count; i++) {
+            let pColor = color;
+            if (mode === "SUPERNOVA") {
+                // 金、碧、白を混ぜて煌びやかに
+                let r = random();
+                if (r > 0.8) pColor = [255, 215, 0]; // Gold
+                else if (r > 0.6) pColor = [100, 255, 200]; // Emerald
+                else if (r > 0.4) pColor = [255, 255, 255]; // White
+            }
+            this.explosionParticles.push(new Particle(x, y, true, mass, pColor));
         }
     }
 
@@ -265,22 +307,39 @@ class Universe {
         push();
         if (this.shakeAmount > 0) {
             translate(random(-this.shakeAmount, this.shakeAmount), random(-this.shakeAmount, this.shakeAmount));
-            this.shakeAmount *= 0.92;
+            this.shakeAmount *= 0.94;
             if (this.shakeAmount < 0.1) this.shakeAmount = 0;
         }
 
-        background(5, 5, 5);
+        background(5, 5, 8); // かすかに青みがかった黒
+
+        // 永続的な星間塵の描画
+        for (let n of this.nebulae) {
+            n.x += n.driftX;
+            n.y += n.driftY;
+            noStroke();
+            fill(n.col[0], n.col[1], n.col[2], n.alpha);
+            circle(n.x, n.y, n.size);
+        }
 
         noStroke();
-        let resolution = 100;
+        let resolution = 120;
         for (let x = 0; x < width + resolution; x += resolution) {
             for (let y = 0; y < height + resolution; y += resolution) {
                 let n = noise(x * 0.003, y * 0.003, this.noiseOffset);
-                fill(255, 255, 255, n * 10);
+                let col = [255, 255, 255];
+                if (this.legacyColor) {
+                    col = [
+                        lerp(255, this.legacyColor[0], 0.3),
+                        lerp(255, this.legacyColor[1], 0.3),
+                        lerp(255, this.legacyColor[2], 0.3)
+                    ];
+                }
+                fill(col[0], col[1], col[2], n * this.legacyBrightness);
                 rect(x, y, resolution, resolution);
             }
         }
-        this.noiseOffset += 0.001;
+        this.noiseOffset += 0.0015;
 
         for (let s of this.bgStars) {
             fill(255, 255, 255, s.alpha * (0.5 + 0.5 * sin(frameCount * 0.01 + s.x)));
@@ -315,6 +374,15 @@ class Universe {
             this.bigBangTimer -= 1;
             if (this.bigBangTimer <= 0) {
                 changeState(STATES.STAR_FORMATION);
+            }
+        }
+
+        if (currentState === STATES.BLACK_HOLE_SINK) {
+            fill(0, 0, 0, this.sinkAlpha || 0);
+            rect(0, 0, width, height);
+            this.sinkAlpha = (this.sinkAlpha || 0) + 4;
+            if (this.sinkAlpha >= 255) {
+                changeState(STATES.END);
             }
         }
     }
@@ -355,14 +423,15 @@ function draw() {
 
     if (currentState === STATES.SELECT_POSITION && targetPos) {
         noFill();
-        stroke(255, 255, 255, 100);
-        circle(targetPos.x, targetPos.y, 20 + sin(frameCount * 0.1) * 5);
+        stroke(255, 255, 255, 120);
+        strokeWeight(1);
+        circle(targetPos.x, targetPos.y, 25 + sin(frameCount * 0.1) * 8);
     }
 
     if (currentState === STATES.STAR_FORMATION) {
-        // Automatically move to observation state after some time
-        this.formationTimer = (this.formationTimer || 300) - 1;
+        this.formationTimer = (this.formationTimer || 350) - 1;
         if (this.formationTimer <= 0) {
+            this.formationTimer = 350;
             changeState(STATES.OBSERVATION);
         }
     }
@@ -392,10 +461,9 @@ function changeState(newState) {
         screens[currentState].classList.add('active');
     }
 
-    // Logic for specific state entry
     if (newState === STATES.BIG_BANG) {
         universe.bigBangTimer = 60;
-        universe.shake(15);
+        universe.shake(20);
         universe.initDustParticles();
     }
 
